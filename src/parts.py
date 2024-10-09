@@ -3,15 +3,51 @@
 import os
 import hashlib
 import argparse
+from typing import Tuple
 
 
-def get_file_hash(file_path: str) -> str:
+def get_file_hash(file_path:str) -> str:
     """Calculate the SHA-256 hash of a file."""
     sha256 = hashlib.sha256()
     with open(file_path, 'rb') as f:
         while chunk := f.read(8192):
             sha256.update(chunk)
     return sha256.hexdigest()
+
+
+def write_index(file_path:str, part_files:list, index_filename="index.txt"):
+    # Write index.txt file
+    num_parts = len(part_files)
+    
+    with open(index_filename, 'w') as index_file:
+        index_file.write(f"FILENAME: {file_path}\n")
+    
+        for part_index, part_hash, _ in part_files:
+            index_file.write(f"{part_index}, {part_hash}\n")
+            
+    print(f"File '{file_path}' split into {num_parts} parts. Index saved as {index_filename}")
+    
+    
+def read_index(index_filename:str="index.txt") -> Tuple[str, list]:
+    lines = None
+    with open(index_filename, "r") as index_file:
+        lines = index_file.readlines()
+        
+    original_file = ""
+    parts = []
+
+    for line in lines:
+        if line.startswith("FILENAME:"):
+            original_file = line.split(": ")[1].strip()
+        else:
+            try:
+                part_index, part_hash = line.strip().split(", ")
+                parts.append((int(part_index), part_hash))
+            except ValueError:
+                continue
+            
+    return original_file, parts
+        
 
 
 def split_file(file_path: str, num_parts: int) -> None:
@@ -38,16 +74,7 @@ def split_file(file_path: str, num_parts: int) -> None:
             with open(part_filename, 'wb') as outfile:
                 outfile.write(part_data)
 
-    # Write index.txt file
-    index_filename = "index.txt"
-    with open(index_filename, 'w') as index_file:
-        # First line contains the original file name
-        index_file.write(f"FILENAME: {file_path}\n")
-        # Subsequent lines contain the part index and the corresponding hash
-        for part_index, part_hash, _ in part_files:
-            index_file.write(f"{part_index}, {part_hash}\n")
-
-    print(f"File '{file_path}' split into {num_parts} parts. Index saved as {index_filename}")
+    write_index(file_path, part_files)
 
 
 def merge_files(index_filename: str) -> None:
@@ -56,23 +83,7 @@ def merge_files(index_filename: str) -> None:
         print(f"Error: {index_filename} not found.")
         return
 
-    # Read the index.txt file
-    with open(index_filename, 'r') as index_file:
-        lines = index_file.readlines()
-
-    # Extract the original file name
-    original_file = ""
-    parts_info = []
-
-    for line in lines:
-        if line.startswith("FILENAME:"):
-            original_file = line.split(": ")[1].strip()
-        else:
-            try:
-                part_index, part_hash = line.strip().split(", ")
-                parts_info.append((int(part_index), part_hash))
-            except ValueError:
-                continue  # Ignore malformed lines
+    original_file, parts_info = read_index(index_filename)
 
     # Sort parts by index to ensure correct merge order
     parts_info = sorted(parts_info, key=lambda x: x[0])

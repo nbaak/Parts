@@ -1,6 +1,7 @@
 .project
 .pydevproject
 *.backup
+*.part
 __pycache__
 venv
 widgets.qss
